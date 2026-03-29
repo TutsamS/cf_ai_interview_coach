@@ -113,7 +113,7 @@ export class ChatAgent extends AIChatAgent<Env> {
     const lower = text.toLowerCase();
     if (this.isHintRequest(text)) return false;
     return (
-      lower.includes("give me a") && lower.includes("problem") ||
+      (lower.includes("give me a") && lower.includes("problem")) ||
       lower.includes("new problem") ||
       lower.includes("another problem") ||
       lower.includes("practice problem") ||
@@ -159,7 +159,12 @@ export class ChatAgent extends AIChatAgent<Env> {
 
     const result = streamText({
       model: workersai("@cf/meta/llama-3.3-70b-instruct-fp8-fast"),
-      system: BASE_SYSTEM_PROMPT + this.buildHistoryContext() + (this.getLatestSummary() ? `\n\nLast weekly summary: ${this.getLatestSummary()}` : ""),
+      system:
+        BASE_SYSTEM_PROMPT +
+        this.buildHistoryContext() +
+        (this.getLatestSummary()
+          ? `\n\nLast weekly summary: ${this.getLatestSummary()}`
+          : ""),
       messages: pruneMessages({
         messages: await convertToModelMessages(this.messages),
         toolCalls: "before-last-2-messages"
@@ -187,16 +192,23 @@ export default {
     if (url.pathname === "/get-history" && request.method === "GET") {
       const id = env.ChatAgent.idFromName("default");
       const stub = env.ChatAgent.get(id);
-      const rows = await (stub as unknown as { getHistory(): Promise<unknown[]> }).getHistory();
+      const rows = await (
+        stub as unknown as { getHistory(): Promise<unknown[]> }
+      ).getHistory();
       return Response.json(rows);
     }
 
     // Internal route: Workflow pushes the weekly summary here
     if (url.pathname === "/store-summary" && request.method === "POST") {
-      const { userId, summary } = await request.json<{ userId: string; summary: string }>();
+      const { userId, summary } = await request.json<{
+        userId: string;
+        summary: string;
+      }>();
       const id = env.ChatAgent.idFromName(userId);
       const stub = env.ChatAgent.get(id);
-      await (stub as unknown as { storeSummary(s: string): Promise<void> }).storeSummary(summary);
+      await (
+        stub as unknown as { storeSummary(s: string): Promise<void> }
+      ).storeSummary(summary);
       return new Response("ok");
     }
 

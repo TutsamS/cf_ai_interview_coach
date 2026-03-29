@@ -5,7 +5,10 @@ type SummaryParams = {
   userId: string;
 };
 
-export class WeeklySummaryWorkflow extends WorkflowEntrypoint<Env, SummaryParams> {
+export class WeeklySummaryWorkflow extends WorkflowEntrypoint<
+  Env,
+  SummaryParams
+> {
   async run(event: WorkflowEvent<SummaryParams>, step: WorkflowStep) {
     const { userId } = event.payload;
 
@@ -14,7 +17,9 @@ export class WeeklySummaryWorkflow extends WorkflowEntrypoint<Env, SummaryParams
       const id = this.env.ChatAgent.idFromName(userId);
       const stub = this.env.ChatAgent.get(id);
       const res = await stub.fetch("https://internal/get-history");
-      return res.json<Array<{ problem_name: string; hints_used: number; solved: number }>>();
+      return res.json<
+        Array<{ problem_name: string; hints_used: number; solved: number }>
+      >();
     });
 
     // Step 2 — Generate the summary using Workers AI
@@ -27,7 +32,10 @@ export class WeeklySummaryWorkflow extends WorkflowEntrypoint<Env, SummaryParams
       const solved = history.filter((a) => a.solved).length;
       const totalHints = history.reduce((sum, a) => sum + a.hints_used, 0);
       const problemList = history
-        .map((a) => `- ${a.problem_name}: ${a.solved ? "solved" : "attempted"}, ${a.hints_used} hints`)
+        .map(
+          (a) =>
+            `- ${a.problem_name}: ${a.solved ? "solved" : "attempted"}, ${a.hints_used} hints`
+        )
         .join("\n");
 
       const prompt = `You are a coding interview coach. Write a short, encouraging weekly performance summary (3-4 sentences) for a student based on this data:
@@ -44,7 +52,10 @@ Be specific, mention strong areas and one area to improve. Keep it under 100 wor
         { messages: [{ role: "user", content: prompt }] }
       );
 
-      return (response as { response?: string }).response ?? "Unable to generate summary.";
+      return (
+        (response as { response?: string }).response ??
+        "Unable to generate summary."
+      );
     });
 
     // Step 3 — Store the summary back in the Durable Object
