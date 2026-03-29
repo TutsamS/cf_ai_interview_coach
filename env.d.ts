@@ -8,6 +8,7 @@ declare namespace Cloudflare {
 	interface Env {
 		AI: Ai;
 		ChatAgent: DurableObjectNamespace<import("./src/server").ChatAgent>;
+		WEEKLY_SUMMARY: Workflow;
 	}
 }
 interface Env extends Cloudflare.Env {}
