@@ -221,10 +221,18 @@ function ToolPartView({
 
 // ── Main chat ─────────────────────────────────────────────────────────
 
+type HistoryRow = {
+  problem_name: string;
+  hints_used: number;
+  solved: number;
+  started_at: string;
+};
+
 function Chat() {
   const [connected, setConnected] = useState(false);
   const [input, setInput] = useState("");
   const [showDebug, setShowDebug] = useState(false);
+  const [history, setHistory] = useState<HistoryRow[]>([]);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -243,9 +251,20 @@ function Chat() {
   const [isAddingServer, setIsAddingServer] = useState(false);
   const mcpPanelRef = useRef<HTMLDivElement>(null);
 
+  const refreshHistory = useCallback(async (stub: ChatAgent) => {
+    try {
+      const rows = await stub.getHistory() as HistoryRow[];
+      setHistory(rows);
+    } catch {
+      // history not critical
+    }
+  }, []);
+
   const agent = useAgent<ChatAgent>({
     agent: "ChatAgent",
-    onOpen: useCallback(() => setConnected(true), []),
+    onOpen: useCallback(() => {
+      setConnected(true);
+    }, []),
     onClose: useCallback(() => setConnected(false), []),
     onError: useCallback(
       (error: Event) => console.error("WebSocket error:", error),
@@ -344,12 +363,13 @@ function Chat() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // Re-focus the input after streaming ends
+  // Re-focus the input and refresh history after streaming ends
   useEffect(() => {
-    if (!isStreaming && textareaRef.current) {
-      textareaRef.current.focus();
+    if (!isStreaming) {
+      if (textareaRef.current) textareaRef.current.focus();
+      if (agent.stub) refreshHistory(agent.stub as unknown as ChatAgent);
     }
-  }, [isStreaming]);
+  }, [isStreaming, agent.stub, refreshHistory]);
 
   const addFiles = useCallback((files: FileList | File[]) => {
     const images = Array.from(files).filter((f) => f.type.startsWith("image/"));
@@ -430,8 +450,45 @@ function Chat() {
   }, [input, attachments, isStreaming, sendMessage]);
 
   return (
+    <div className="flex h-screen bg-kumo-elevated">
+      {/* Sidebar — problem history */}
+      <aside className="w-64 shrink-0 border-r border-kumo-line bg-kumo-base flex flex-col">
+        <div className="px-4 py-4 border-b border-kumo-line flex items-center justify-between">
+          <Text size="sm" bold>Problem History</Text>
+          <Button
+            variant="ghost"
+            size="sm"
+            shape="square"
+            icon={<TrashIcon size={14} />}
+            aria-label="Clear history"
+            onClick={async () => {
+              if (agent.stub) {
+                await (agent.stub as unknown as ChatAgent).clearAttempts();
+                setHistory([]);
+              }
+            }}
+          />
+        </div>
+        <div className="flex-1 overflow-y-auto px-3 py-3 space-y-2">
+          {history.length === 0 && (
+            <Text size="xs" variant="secondary">No problems attempted yet.</Text>
+          )}
+          {history.map((row, i) => (
+            <div key={i} className="rounded-lg border border-kumo-line px-3 py-2 space-y-1">
+              <Text size="xs" bold>{row.problem_name}</Text>
+              <div className="flex items-center gap-2">
+                <Badge variant={row.solved ? "primary" : "secondary"}>
+                  {row.solved ? "Solved" : "Attempted"}
+                </Badge>
+                <Text size="xs" variant="secondary">{row.hints_used} hints</Text>
+              </div>
+            </div>
+          ))}
+        </div>
+      </aside>
+
     <div
-      className="flex flex-col h-screen bg-kumo-elevated relative"
+      className="flex flex-col flex-1 relative"
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
@@ -450,11 +507,11 @@ function Chat() {
         <div className="max-w-3xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
             <h1 className="text-lg font-semibold text-kumo-default">
-              <span className="mr-2">⛅</span>Agent Starter
+              <span className="mr-2">🧑‍💻</span>Interview Coach
             </h1>
             <Badge variant="secondary">
               <ChatCircleDotsIcon size={12} weight="bold" className="mr-1" />
-              AI Chat
+              Powered by Llama 3.3
             </Badge>
           </div>
           <div className="flex items-center gap-3">
@@ -660,14 +717,14 @@ function Chat() {
           {messages.length === 0 && (
             <Empty
               icon={<ChatCircleDotsIcon size={32} />}
-              title="Start a conversation"
+              title="Ready to practice?"
               contents={
                 <div className="flex flex-wrap justify-center gap-2">
                   {[
-                    "What's the weather in Paris?",
-                    "What timezone am I in?",
-                    "Calculate 5000 * 3",
-                    "Remind me in 5 minutes to take a break"
+                    "Give me a medium difficulty arrays problem",
+                    "Give me an easy linked list problem",
+                    "Give me a hard dynamic programming problem",
+                    "Quiz me on binary search"
                   ].map((prompt) => (
                     <Button
                       key={prompt}
@@ -925,6 +982,7 @@ function Chat() {
           </div>
         </form>
       </div>
+    </div>
     </div>
   );
 }

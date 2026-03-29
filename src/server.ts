@@ -73,6 +73,11 @@ export class ChatAgent extends AIChatAgent<Env> {
     `;
   }
 
+  @callable()
+  async clearAttempts() {
+    this.sql`DELETE FROM attempts`;
+  }
+
   // Exposed to the frontend so the sidebar can fetch history directly
   @callable()
   async getHistory() {
@@ -106,8 +111,9 @@ export class ChatAgent extends AIChatAgent<Env> {
   // Detect if user is asking for a new problem
   isNewProblemRequest(text: string): boolean {
     const lower = text.toLowerCase();
+    if (this.isHintRequest(text)) return false;
     return (
-      lower.includes("give me") ||
+      lower.includes("give me a") && lower.includes("problem") ||
       lower.includes("new problem") ||
       lower.includes("another problem") ||
       lower.includes("practice problem") ||
@@ -141,10 +147,7 @@ export class ChatAgent extends AIChatAgent<Env> {
             .join(" ")
         : "";
 
-    // Track attempt if user is asking for a new problem
-    if (this.isNewProblemRequest(userText)) {
-      await this.logAttempt("pending");
-    }
+    const isNewProblem = this.isNewProblemRequest(userText);
 
     // Track hint if user is asking for help
     const lastAttempt = [
@@ -161,6 +164,14 @@ export class ChatAgent extends AIChatAgent<Env> {
         messages: await convertToModelMessages(this.messages),
         toolCalls: "before-last-2-messages"
       }),
+      onFinish: async ({ text }) => {
+        if (isNewProblem && text) {
+          // Extract the problem name from the first line of the response
+          const firstLine = text.split("\n")[0].replace(/[*#`]/g, "").trim();
+          const problemName = firstLine.slice(0, 80) || "Unknown Problem";
+          await this.logAttempt(problemName);
+        }
+      },
       abortSignal: options?.abortSignal
     });
 
